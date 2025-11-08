@@ -67,13 +67,13 @@ export default function Index() {
   // Inactivity/dim timer customizations
   const [showBlankDropdown, setShowBlankDropdown] = useState(false);
   const [selectedBlankTimeId, setSelectedBlankTimeId] = useState(
-    BLANK_TIME_OPTIONS[0].id
+    BLANK_TIME_OPTIONS[2].id
   );
 
   // Find the selected timeout value in ms
   const selectedBlankTimeObj =
     BLANK_TIME_OPTIONS.find((opt) => opt.id === selectedBlankTimeId) ||
-    BLANK_TIME_OPTIONS[0];
+    BLANK_TIME_OPTIONS[2];
   const selectedBlankTime = selectedBlankTimeObj.value;
 
   // For inactivity/dim timer
@@ -259,6 +259,20 @@ export default function Index() {
               Status: {getBatteryStateLabel(batteryState)}
             </Text>
 
+            {/* Input */}
+            <View className="w-80 mt-8">
+              <Text className="text-white">Enter the battery percentage:</Text>
+              <View className="items-center justify-center mt-2">
+                <TextInput
+                  className="h-14 w-80 border border-neutral-200 rounded-xl text-center text-2xl text-white font-bold"
+                  value={inputValue}
+                  onChangeText={setInputValue}
+                  keyboardType="numeric"
+                  maxLength={3}
+                />
+              </View>
+            </View>
+
             {/* Enable Limit Switch */}
             <View className="w-80 border-2 flex-row items-center justify-between mt-4">
               <Text className="text-white text-xl font-semibold">
@@ -274,7 +288,7 @@ export default function Index() {
             </View>
 
             {/* Inactivity/Dim Timer Dropdown */}
-            <View className="w-80 mt-8">
+            <View className="w-80 mt-4">
               <Text className="text-white mb-2">Screen Blank After:</Text>
               <View style={{ position: "relative" }}>
                 <TouchableOpacity
@@ -313,22 +327,8 @@ export default function Index() {
               </View>
             </View>
 
-            {/* Input */}
-            <View className="w-80 mt-8">
-              <Text className="text-white">Enter the battery percentage:</Text>
-              <View className="items-center justify-center mt-2">
-                <TextInput
-                  className="h-14 w-80 border border-neutral-200 rounded-xl text-center text-2xl text-white font-bold"
-                  value={inputValue}
-                  onChangeText={setInputValue}
-                  keyboardType="numeric"
-                  maxLength={3}
-                />
-              </View>
-            </View>
-
             {/* Sound Dropdown */}
-            <View className="w-80 mt-8">
+            <View className="w-80 mt-4">
               <Text className="text-white mb-2">Select Alert Sound:</Text>
               <View style={{ position: "relative" }}>
                 <TouchableOpacity
