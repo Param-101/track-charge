@@ -18,12 +18,17 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/icons/android-icon-foreground.png",
-        "monochromeImage": "./assets/icons/android-icon-monochrome.png",
+        "foregroundImage": "./assets/icons/adaptive-icon.png",
+        "monochromeImage": "./assets/icons/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ],
+      "package": "com.paramdevgan.trackcharge"
     },
     "web": {
       "output": "static",
@@ -54,12 +59,17 @@
         }
       ],
       "expo-audio",
-      "expo-background-task",
-      "expo-secure-store"
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "89f8d02d-e5d3-4125-b2db-5d2a27345507"
+      }
     }
   }
 }
