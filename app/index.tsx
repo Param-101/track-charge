@@ -1,6 +1,13 @@
-import { Switch, Text, TextInput, View, TouchableOpacity, TouchableWithoutFeedback } from "react-native";
+import {
+  Switch,
+  Text,
+  TextInput,
+  View,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+} from "react-native";
 import { useEffect, useRef, useState } from "react";
-import { BatteryState, usePowerState } from "expo-battery";
+import { BatteryState, getBatteryLevelAsync, usePowerState } from "expo-battery";
 import { useAudioPlayer } from "expo-audio";
 import { useKeepAwake } from "expo-keep-awake";
 import * as Brightness from "expo-brightness";
@@ -25,6 +32,16 @@ const SOUND_OPTIONS = [
   },
 ];
 
+// Blank time dropdown options (in ms)
+const BLANK_TIME_OPTIONS = [
+  { id: "t1", label: "5 sec", value: 5000 },
+  { id: "t2", label: "15 sec", value: 15000 },
+  { id: "t3", label: "30 sec", value: 30000 },
+  { id: "t4", label: "1 min", value: 60000 },
+  { id: "t5", label: "5 min", value: 5 * 60000 },
+  { id: "t6", label: "10 min", value: 10 * 60000 },
+];
+
 function getBatteryStateLabel(state: BatteryState | null | undefined) {
   if (state === BatteryState.CHARGING) return "Charging";
   if (state === BatteryState.UNPLUGGED) return "Discharging";
@@ -37,13 +54,27 @@ export default function Index() {
 
   const [isLimitEnabled, setIsLimitEnabled] = useState(false);
   const [inputValue, setInputValueRaw] = useState("80");
-  const { batteryLevel, batteryState } = usePowerState();
+  // We'll now store batteryLevel in state and update it with a polling effect
+  const { batteryState } = usePowerState();
+  const [batteryLevel, setBatteryLevel] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showSoundDropdown, setShowSoundDropdown] = useState(false);
   const [selectedSoundId, setSelectedSoundId] = useState<string>(
     SOUND_OPTIONS[0].id
   );
   const [blanked, setBlanked] = useState(false);
+
+  // Inactivity/dim timer customizations
+  const [showBlankDropdown, setShowBlankDropdown] = useState(false);
+  const [selectedBlankTimeId, setSelectedBlankTimeId] = useState(
+    BLANK_TIME_OPTIONS[2].id
+  );
+
+  // Find the selected timeout value in ms
+  const selectedBlankTimeObj =
+    BLANK_TIME_OPTIONS.find((opt) => opt.id === selectedBlankTimeId) ||
+    BLANK_TIME_OPTIONS[2];
+  const selectedBlankTime = selectedBlankTimeObj.value;
 
   // For inactivity/dim timer
   const dimTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -61,8 +92,6 @@ export default function Index() {
 
   // When user taps: restore system brightness mode and show UI
   const handleUserTouch = async () => {
-    // For both Android and iOS, attempt to set to system mode, i.e., AUTO (does not mean max)
-    // On Android: .MODE_AUTOMATIC, on iOS: fallback to restoring default
     try {
       const mode = await Brightness.getSystemBrightnessModeAsync?.();
       if (
@@ -81,10 +110,10 @@ export default function Index() {
     resetTimer();
   };
 
-  // Start inactivity timer (5s)
+  // Reset inactivity timer with selected time
   const resetTimer = () => {
     if (dimTimeout.current) clearTimeout(dimTimeout.current);
-    dimTimeout.current = setTimeout(dimScreen, 5000);
+    dimTimeout.current = setTimeout(dimScreen, selectedBlankTime);
   };
 
   // On mount: ask for brightness permissions, store default brightness, and start timer
@@ -92,11 +121,8 @@ export default function Index() {
     (async () => {
       try {
         await Brightness.requestPermissionsAsync();
-        // Try to get and store original brightness value
         defaultBrightness.current = await Brightness.getSystemBrightnessAsync();
-        // Try to store the current system brightness mode (Android only)
         if (Brightness.getSystemBrightnessModeAsync) {
-          // Just to be explicit, though not needed on iOS
           await Brightness.getSystemBrightnessModeAsync();
         }
       } catch {}
@@ -104,9 +130,36 @@ export default function Index() {
     })();
     return () => {
       if (dimTimeout.current) clearTimeout(dimTimeout.current);
-      // You could restore brightness here on unmount if you wish
+      // Optionally restore brightness on unmount
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Also reset timer when blank time changes
+  useEffect(() => {
+    resetTimer();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBlankTimeId]);
+
+  // Battery polling logic to keep batteryLevel up-to-date
+  useEffect(() => {
+    let isMounted = true;
+
+    async function fetchBatteryLevel() {
+      try {
+        const lvl = await getBatteryLevelAsync();
+        if (isMounted) setBatteryLevel(lvl);
+      } catch {}
+    }
+
+    fetchBatteryLevel(); // initial read
+
+    const interval = setInterval(fetchBatteryLevel, 2000); // Poll every 2s
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
   // Enforce that inputValue never goes over 100 and is 0 or more
@@ -127,13 +180,21 @@ export default function Index() {
     player.loop = isPlaying;
   }, [isPlaying, player]);
 
+  let batteryPct = getBatteryPercentage(batteryLevel);
   // batteryLevel from expo-battery is decimal [0-1], so scale to percent (0-100)
-  const batteryPct =
-    batteryLevel === null ||
-    batteryLevel === undefined ||
-    isNaN(Number(batteryLevel))
-      ? 0
-      : Math.round(Number(batteryLevel) * 100);
+  function getBatteryPercentage(
+    batteryLevel: number | null | undefined
+  ): number {
+    if (
+      batteryLevel === null ||
+      batteryLevel === undefined ||
+      isNaN(Number(batteryLevel))
+    ) {
+      return 0;
+    }
+    batteryPct = Math.round(Number(batteryLevel) * 100);
+    return Math.round(Number(batteryLevel) * 100);
+  }
 
   // Play audio if inputValue equals batteryPct and stop/pause if stop is clicked
   useEffect(() => {
@@ -173,7 +234,6 @@ export default function Index() {
     <TouchableWithoutFeedback onPress={handleUserTouch}>
       <View className="h-full w-full">
         {blanked ? (
-          // Fully blank screen, pure black, no UI
           <View style={{ flex: 1, backgroundColor: "#000" }} />
         ) : (
           <View className="flex-1 items-center justify-center bg-black">
@@ -199,20 +259,6 @@ export default function Index() {
               Status: {getBatteryStateLabel(batteryState)}
             </Text>
 
-            {/* Enable Limit Switch */}
-            <View className="w-80 border-2 flex-row items-center justify-between mt-4">
-              <Text className="text-white text-xl font-semibold">
-                Enable Limit:{" "}
-              </Text>
-              <Switch
-                value={isLimitEnabled}
-                onValueChange={setIsLimitEnabled}
-                trackColor={{ false: "#dc2626", true: "#22c55e" }}
-                ios_backgroundColor="#dc2626"
-                thumbColor="#fff"
-              />
-            </View>
-
             {/* Input */}
             <View className="w-80 mt-8">
               <Text className="text-white">Enter the battery percentage:</Text>
@@ -227,8 +273,62 @@ export default function Index() {
               </View>
             </View>
 
+            {/* Enable Limit Switch */}
+            <View className="w-80 border-2 flex-row items-center justify-between mt-4">
+              <Text className="text-white text-xl font-semibold">
+                Enable Limit:{" "}
+              </Text>
+              <Switch
+                value={isLimitEnabled}
+                onValueChange={setIsLimitEnabled}
+                trackColor={{ false: "#dc2626", true: "#22c55e" }}
+                ios_backgroundColor="#dc2626"
+                thumbColor="#fff"
+              />
+            </View>
+
+            {/* Inactivity/Dim Timer Dropdown */}
+            <View className="w-80 mt-4">
+              <Text className="text-white mb-2">Screen Blank After:</Text>
+              <View style={{ position: "relative" }}>
+                <TouchableOpacity
+                  className="border border-neutral-200 rounded-xl bg-white p-3"
+                  onPress={() => setShowBlankDropdown((prev) => !prev)}
+                >
+                  <Text className="text-black">
+                    {selectedBlankTimeObj.label}
+                  </Text>
+                </TouchableOpacity>
+                {showBlankDropdown && (
+                  <View
+                    className="border border-neutral-200 rounded-xl bg-white mt-2 w-full"
+                    style={{
+                      position: "absolute",
+                      top: "100%",
+                      left: 0,
+                      zIndex: 1,
+                    }}
+                  >
+                    {BLANK_TIME_OPTIONS.map((option) => (
+                      <TouchableOpacity
+                        key={option.id}
+                        className="p-3"
+                        onPress={() => {
+                          setSelectedBlankTimeId(option.id);
+                          setShowBlankDropdown(false);
+                          resetTimer();
+                        }}
+                      >
+                        <Text className="text-black">{option.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+            </View>
+
             {/* Sound Dropdown */}
-            <View className="w-80 mt-8">
+            <View className="w-80 mt-4">
               <Text className="text-white mb-2">Select Alert Sound:</Text>
               <View style={{ position: "relative" }}>
                 <TouchableOpacity
