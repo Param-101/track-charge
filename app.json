@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "track-charge",
+    "name": "Track Charge",
     "slug": "track-charge",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -14,7 +14,8 @@
         "dark": "./assets/icons/ios-dark.png",
         "light": "./assets/icons/ios-light.png",
         "tinted": "./assets/icons/ios-tinted.png"
-      }
+      },
+      "bundleIdentifier": "com.paramdevgan.trackcharge"
     },
     "android": {
       "adaptiveIcon": {

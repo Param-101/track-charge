@@ -1,6 +1,13 @@
-import { Switch, Text, TextInput, View, TouchableOpacity, TouchableWithoutFeedback } from "react-native";
+import {
+  Switch,
+  Text,
+  TextInput,
+  View,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+} from "react-native";
 import { useEffect, useRef, useState } from "react";
-import { BatteryState, usePowerState } from "expo-battery";
+import { BatteryState, getBatteryLevelAsync, usePowerState } from "expo-battery";
 import { useAudioPlayer } from "expo-audio";
 import { useKeepAwake } from "expo-keep-awake";
 import * as Brightness from "expo-brightness";
@@ -47,7 +54,9 @@ export default function Index() {
 
   const [isLimitEnabled, setIsLimitEnabled] = useState(false);
   const [inputValue, setInputValueRaw] = useState("80");
-  const { batteryLevel, batteryState } = usePowerState();
+  // We'll now store batteryLevel in state and update it with a polling effect
+  const { batteryState } = usePowerState();
+  const [batteryLevel, setBatteryLevel] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showSoundDropdown, setShowSoundDropdown] = useState(false);
   const [selectedSoundId, setSelectedSoundId] = useState<string>(
@@ -57,11 +66,14 @@ export default function Index() {
 
   // Inactivity/dim timer customizations
   const [showBlankDropdown, setShowBlankDropdown] = useState(false);
-  const [selectedBlankTimeId, setSelectedBlankTimeId] = useState(BLANK_TIME_OPTIONS[0].id);
+  const [selectedBlankTimeId, setSelectedBlankTimeId] = useState(
+    BLANK_TIME_OPTIONS[0].id
+  );
 
   // Find the selected timeout value in ms
   const selectedBlankTimeObj =
-    BLANK_TIME_OPTIONS.find((opt) => opt.id === selectedBlankTimeId) || BLANK_TIME_OPTIONS[0];
+    BLANK_TIME_OPTIONS.find((opt) => opt.id === selectedBlankTimeId) ||
+    BLANK_TIME_OPTIONS[0];
   const selectedBlankTime = selectedBlankTimeObj.value;
 
   // For inactivity/dim timer
@@ -129,6 +141,27 @@ export default function Index() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBlankTimeId]);
 
+  // Battery polling logic to keep batteryLevel up-to-date
+  useEffect(() => {
+    let isMounted = true;
+
+    async function fetchBatteryLevel() {
+      try {
+        const lvl = await getBatteryLevelAsync();
+        if (isMounted) setBatteryLevel(lvl);
+      } catch {}
+    }
+
+    fetchBatteryLevel(); // initial read
+
+    const interval = setInterval(fetchBatteryLevel, 2000); // Poll every 2s
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
   // Enforce that inputValue never goes over 100 and is 0 or more
   const setInputValue = (text: string) => {
     let num = parseInt(text.replace(/[^0-9]/g, ""), 10);
@@ -147,13 +180,21 @@ export default function Index() {
     player.loop = isPlaying;
   }, [isPlaying, player]);
 
+  let batteryPct = getBatteryPercentage(batteryLevel);
   // batteryLevel from expo-battery is decimal [0-1], so scale to percent (0-100)
-  const batteryPct =
-    batteryLevel === null ||
-    batteryLevel === undefined ||
-    isNaN(Number(batteryLevel))
-      ? 0
-      : Math.round(Number(batteryLevel) * 100);
+  function getBatteryPercentage(
+    batteryLevel: number | null | undefined
+  ): number {
+    if (
+      batteryLevel === null ||
+      batteryLevel === undefined ||
+      isNaN(Number(batteryLevel))
+    ) {
+      return 0;
+    }
+    batteryPct = Math.round(Number(batteryLevel) * 100);
+    return Math.round(Number(batteryLevel) * 100);
+  }
 
   // Play audio if inputValue equals batteryPct and stop/pause if stop is clicked
   useEffect(() => {
