@@ -18,8 +18,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/icons/android-icon-foreground.png",
-        "monochromeImage": "./assets/icons/android-icon-monochrome.png",
+        "foregroundImage": "./assets/icons/adaptive-icon.png",
+        "monochromeImage": "./assets/icons/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
@@ -54,8 +54,7 @@
         }
       ],
       "expo-audio",
-      "expo-background-task",
-      "expo-secure-store"
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true,
